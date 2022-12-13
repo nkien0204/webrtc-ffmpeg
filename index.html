@@ -1,0 +1,162 @@
+<html lang="en">
+
+<head>
+    <title>CCTV-Edsolabs</title>
+    <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
+</head>
+
+<body>
+    <!--<h3><a href="index.html">Video</a></h3>-->
+    <h1 class="mx-5 bg-red"> DEMO WEBRTC </h1>
+    <div class="container flex">
+        <div class="flex mx-auto flex-wrap flex-row border-red-900 border-solid border-4 mb-1">
+            <div class="w-1/3  mb-1 mx-1/2" id="remoteVideos"></div>
+            <!-- <div class="w-1/3  mx-1/2" id="remoteVideos2"></div>
+            <div class="w-1/3  mb-1 mx-1/2" id="remoteVideos3"></div>
+            <div class="w-1/3  mb-1 mx-1/2" id="remoteVideos4"></div>
+            <div class="w-1/3  mb-1 mx-1/2" id="remoteVideos5"></div>
+            <div class="w-1/3  mb-1 mx-1/2" id="remoteVideos6"></div>
+            <div class="w-1/3  mb-1 mx-1/2" id="remoteVideos7">CAM 7</div>
+            <div class="w-1/3  mb-1 mx-1/2" id="remoteVideos8">CAM8</div>
+            <div class="w-1/3  mb-1 mx-1/2" id="remoteVideos9">CAM9</div> -->
+        </div>
+        <div class="flex">
+            <div>
+                TIM KIEM
+            </div>
+        </div>
+    </div>
+
+
+    <br/>
+
+    <div>
+        <button onclick="window.doSignaling(true)"> ICE Restart (reconnect)</button>
+    </div>
+
+    <h3> Logs </h3>
+    <div id="logs"></div>
+</body>
+
+
+<script>
+    function randomString(len) {
+        const charSet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        let randomString = '';
+        for (let i = 0; i < len; i++) {
+            const randomPoz = Math.floor(Math.random() * charSet.length);
+            randomString += charSet.substring(randomPoz, randomPoz + 1);
+        }
+        return randomString;
+    }
+
+    let peerCode = randomString(10)
+    let pc = new RTCPeerConnection()
+    let cameras = [
+        "cam1"
+    ]
+    let grids = {
+        layout: "1x1",
+        cameras: {
+            0: "cam1",
+        }
+    }
+    pc.addTransceiver('video')
+
+    let log = msg => {
+        document.getElementById('logs').innerHTML += msg + '<br>'
+    }
+    pc.oniceconnectionstatechange = () => log(pc.iceConnectionState)
+    pc.ontrack = function(event) {
+        console.log("ontrack, label:", event.track.label, " id ", event.track.id, "kind:", event.track.kind)
+        let el = document.createElement(event.track.kind)
+        el.srcObject = event.streams[0]
+        el.autoplay = true
+        el.controls = true
+
+        // let el2 = document.createElement(event.track.kind)
+        // el2.srcObject = event.streams[0]
+        // el2.autoplay = true
+        // el2.controls = true
+
+
+        // let el3 = document.createElement(event.track.kind)
+        // el3.srcObject = event.streams[0]
+        // el3.autoplay = true
+        // el3.controls = true
+
+
+        // let el4 = document.createElement(event.track.kind)
+        // el4.srcObject = event.streams[0]
+        // el4.autoplay = true
+        // el4.controls = true
+
+        // let el5 = document.createElement(event.track.kind)
+        // el5.srcObject = event.streams[0]
+        // el5.autoplay = true
+        // el5.controls = true
+
+        document.getElementById('remoteVideos').appendChild(el)
+        // document.getElementById('remoteVideos2').appendChild(el2)
+        // document.getElementById('remoteVideos3').appendChild(el3)
+        // document.getElementById('remoteVideos4').appendChild(el4)
+        // document.getElementById('remoteVideos5').appendChild(el5)
+    }
+    dc = pc.createDataChannel("data chan")
+    pc.ondatachannel = function(event) {
+        dc = event.channel;
+        dc.onopen = function() {
+            console.log("dc opened")
+        };
+        dc.onmessage = function(evt) {
+            console.log("dc onmessage:" + evt)
+            dcTimeout = setTimeout(function() {
+                if (dc == null && dcTimeout != null) {
+                    dcTimeout = null;
+                    return
+                }
+                const message = 'Ping from: ' + peerCode;
+                dc.send(message);
+            }, 1000);
+        }
+        dc.onclose = function() {
+            clearTimeout(dcTimeout);
+            dcTimeout = null;
+            console.log("dc onmessage")
+        };
+    }
+
+    window.doSignaling = (iceRestart, url) => {
+        pc.createOffer({
+                iceRestart
+            })
+            .then(offer => {
+                pc.setLocalDescription(offer)
+                let base64EncodeOffer = btoa(JSON.stringify(offer))
+                let reqBody = {"encodedSDP": base64EncodeOffer}
+
+                return fetch(`/streaming`, {
+                    method: 'post',
+                    headers: {
+                        'Accept': 'application/json, text/plain, */*',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(reqBody)
+                })
+            })
+            .then(res => res.json())
+            .then(res => {
+                let respBody = res['encodedSDP']
+                let base64DecodeOffer = atob(respBody)
+                pc.setRemoteDescription(new RTCSessionDescription({
+                    type: JSON.parse(base64DecodeOffer)['type'], 
+                    sdp: JSON.parse(base64DecodeOffer)['sdp']
+                }))
+            })
+            .catch(alert)
+    }
+
+    window.doSignaling(false, cameras[0])
+</script>
+
+</html>
