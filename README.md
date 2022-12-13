@@ -26,6 +26,7 @@ Take a look into `.env` file
 
 ## Testing
 Go to browser and enter: `http://<address>/get-player`. It will show a simple player for streaming your webcam!
+![demo](demo.png)
 
 ## Reference
 - [Pion-WebRTC](https://github.com/pion/webrtc)
