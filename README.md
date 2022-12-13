@@ -2,14 +2,15 @@
 Webcam video streaming with WebRTC and FFMPEG
 
 ## How to use
-### FFMPEG
-- Base on your OS to [download ffmpeg](https://ffmpeg.org/download.html) binary version.
-- After downloading, put the `ffmpeg` binary file into the project, (`<PATH>/webrtc-ffmpeg/ffmpeg.exe`) for example.
 ### Build
 ```bash
 git clone https://github.com/nkien0204/webrtc-ffmpeg.git
 go build main.go
 ```
+### FFMPEG
+- Base on your OS to [download ffmpeg](https://ffmpeg.org/download.html) binary version.
+- After downloading, put the `ffmpeg` binary file into the project, (`<PATH>/webrtc-ffmpeg/ffmpeg.exe`) for example.
+### Running
 So now we have these files for running: `main.exe`, `.env`, `ffmpeg.exe` and `index.html`.
 Run cmd:
 ```bash
