@@ -3,6 +3,7 @@ module github.com/nkien0204/lets-go
 go 1.18
 
 require (
+	github.com/google/uuid v1.3.0
 	github.com/joho/godotenv v1.4.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/spf13/cobra v1.3.0
@@ -11,7 +12,6 @@ require (
 )
 
 require (
-	github.com/google/uuid v1.3.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.5 // indirect
 	github.com/pion/datachannel v1.5.5 // indirect
 	github.com/pion/dtls/v2 v2.1.5 // indirect
