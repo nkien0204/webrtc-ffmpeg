@@ -1,4 +1,4 @@
-package streaming
+package webrtcFfmpeg
 
 import (
 	"fmt"
@@ -8,12 +8,17 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/nkien0204/lets-go/internal/configs"
 	"github.com/nkien0204/rolling-logger/rolling"
 	"github.com/pion/webrtc/v3"
 	"github.com/pion/webrtc/v3/pkg/media"
 	"github.com/pion/webrtc/v3/pkg/media/h264reader"
 	"go.uber.org/zap"
+)
+
+const (
+	h264FrameDuration = time.Millisecond * 33
 )
 
 type streamsManager struct {
@@ -23,6 +28,7 @@ type streamsManager struct {
 }
 
 type peerConfig struct {
+	uuid           string
 	peerConnection *webrtc.PeerConnection
 }
 
@@ -35,26 +41,34 @@ func init() {
 	}
 }
 
-func (m *streamsManager) setupPeer(offer webrtc.SessionDescription) (sdp *webrtc.SessionDescription, rtpSender *webrtc.RTPSender) {
-	logger := rolling.New()
+func GetManager() *streamsManager {
+	return manager
+}
+
+func (m *streamsManager) SetupPeer(offer webrtc.SessionDescription) (sdp *webrtc.SessionDescription, rtpSender *webrtc.RTPSender) {
+	streamLogger := rolling.New()
 
 	// Create a new RTCPeerConnection
 	peerConnection, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	if err != nil {
-		logger.Error("webrtc.NewPeerConnection failed", zap.Error(err))
+		streamLogger.Error("webrtc.NewPeerConnection failed", zap.Error(err))
 		return nil, nil
 	}
 
 	// Create a video track
 	videoTrack, videoTrackErr := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264}, "video", "pion")
 	if videoTrackErr != nil {
-		logger.Error(videoTrackErr.Error())
+		streamLogger.Error(videoTrackErr.Error())
 		peerConnection.Close()
 		return
 	}
 
-	manager.addStream(videoTrack, peerConnection)
-	logger.Info("manager", zap.Int("number of streams", len(manager.viewers)))
+	uuid := uuid.New().String()
+	manager.addStream(videoTrack, peerConnection, uuid)
+	logger := streamLogger.With(
+		zap.String("uuid", uuid),
+	)
+	logger.Info("manager: new stream added", zap.Int("number of streams", len(manager.viewers)))
 
 	rtpSender, videoTrackErr = peerConnection.AddTrack(videoTrack)
 	if videoTrackErr != nil {
@@ -77,11 +91,10 @@ func (m *streamsManager) setupPeer(offer webrtc.SessionDescription) (sdp *webrtc
 			// Wait until PeerConnection has had no network activity for 30 seconds or another failure. It may be reconnected using an ICE Restart.
 			// Use webrtc.PeerConnectionStateDisconnected if you are interested in detecting faster timeout.
 			// Note that the PeerConnection may come back from PeerConnectionStateDisconnected.
-			logger.Info("Peer Connection has gone to failed exiting")
 			track, ok := (rtpSender.Track()).(*webrtc.TrackLocalStaticSample)
 			if ok {
 				manager.removeStream(track)
-				logger.Info("manager", zap.Int("number of streams", len(manager.viewers)))
+				logger.Info("a stream removed", zap.Int("number of streams", len(manager.viewers)))
 			}
 			return
 		}
@@ -116,7 +129,7 @@ func (m *streamsManager) setupPeer(offer webrtc.SessionDescription) (sdp *webrtc
 	return peerConnection.LocalDescription(), rtpSender
 }
 
-func streaming(rtpSender *webrtc.RTPSender) {
+func Streaming(rtpSender *webrtc.RTPSender) {
 	logger := rolling.New()
 	// Read incoming RTCP packets
 	// Before these packets are returned they are processed by interceptors. For things
@@ -155,7 +168,8 @@ func streaming(rtpSender *webrtc.RTPSender) {
 		ticker := time.NewTicker(h264FrameDuration)
 		for ; true; <-ticker.C {
 			if len(manager.viewers) == 0 {
-				manager.setStream(false)
+				manager.SetStream(false)
+				dataPipe.Close()
 				logger.Info("stop sending video frame")
 				return
 			}
@@ -213,10 +227,10 @@ func runCommand(name string, arg ...string) (io.ReadCloser, error) {
 	return dataPipe, nil
 }
 
-func (m *streamsManager) addStream(track *webrtc.TrackLocalStaticSample, peer *webrtc.PeerConnection) {
+func (m *streamsManager) addStream(track *webrtc.TrackLocalStaticSample, peer *webrtc.PeerConnection, uuid string) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
-	m.viewers[track] = &peerConfig{peerConnection: peer}
+	m.viewers[track] = &peerConfig{peerConnection: peer, uuid: uuid}
 }
 
 func (m *streamsManager) removeStream(track *webrtc.TrackLocalStaticSample) {
@@ -228,13 +242,13 @@ func (m *streamsManager) removeStream(track *webrtc.TrackLocalStaticSample) {
 	delete(m.viewers, track)
 }
 
-func (m *streamsManager) hasStream() bool {
+func (m *streamsManager) HasStream() bool {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 	return m.isStreaming
 }
 
-func (m *streamsManager) setStream(isStreaming bool) {
+func (m *streamsManager) SetStream(isStreaming bool) {
 	m.mtx.Lock()
 	m.mtx.Unlock()
 	m.isStreaming = isStreaming

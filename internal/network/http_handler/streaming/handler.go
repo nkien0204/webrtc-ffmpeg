@@ -3,15 +3,11 @@ package streaming
 import (
 	"encoding/json"
 	"net/http"
-	"time"
 
+	webrtcFfmpeg "github.com/nkien0204/lets-go/internal/network/webrtc-ffmpeg"
 	"github.com/nkien0204/rolling-logger/rolling"
 	"github.com/pion/webrtc/v3"
 	"go.uber.org/zap"
-)
-
-const (
-	h264FrameDuration = time.Millisecond * 33
 )
 
 type CamPlayInfo struct {
@@ -34,9 +30,10 @@ func HandleStreaming(w http.ResponseWriter, r *http.Request) {
 
 	// base64 decode
 	offer := webrtc.SessionDescription{}
-	decode(reqBody.Body, &offer)
+	webrtcFfmpeg.Decode(reqBody.Body, &offer)
 
-	remoteSDP, rtpSender := manager.setupPeer(offer)
+	manager := webrtcFfmpeg.GetManager()
+	remoteSDP, rtpSender := manager.SetupPeer(offer)
 	if remoteSDP == nil || rtpSender == nil {
 		logger.Error("setupPeer failed")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -44,14 +41,16 @@ func HandleStreaming(w http.ResponseWriter, r *http.Request) {
 		return
 
 	}
-	if !manager.hasStream() {
-		streaming(rtpSender)
-		manager.setStream(true)
+
+	// Only one connection to the webcam
+	if !manager.HasStream() {
+		webrtcFfmpeg.Streaming(rtpSender)
+		manager.SetStream(true)
 	}
 
 	encodedSDP := CamPlayInfo{
 		// base64 encode
-		Body: encode(remoteSDP),
+		Body: webrtcFfmpeg.Encode(remoteSDP),
 	}
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(encodedSDP)

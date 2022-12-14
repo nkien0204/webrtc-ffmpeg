@@ -1,6 +1,6 @@
 //copied from https://github.com/pion/example-webrtc-applications/blob/master/internal/signal/signal.go
 
-package streaming
+package webrtcFfmpeg
 
 import (
 	"bufio"
@@ -44,7 +44,7 @@ func mustReadStdin() string {
 
 // Encode encodes the input in base64
 // It can optionally zip the input before encoding
-func encode(obj interface{}) string {
+func Encode(obj interface{}) string {
 	b, err := json.Marshal(obj)
 	if err != nil {
 		panic(err)
@@ -59,7 +59,7 @@ func encode(obj interface{}) string {
 
 // Decode decodes the input from base64
 // It can optionally unzip the input after decoding
-func decode(in string, obj interface{}) {
+func Decode(in string, obj interface{}) {
 	b, err := base64.StdEncoding.DecodeString(in)
 	if err != nil {
 		panic(err)
