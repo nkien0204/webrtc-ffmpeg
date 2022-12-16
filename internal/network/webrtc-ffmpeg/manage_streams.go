@@ -131,14 +131,22 @@ func (m *streamsManager) SetupPeer(offer webrtc.SessionDescription) (sdp *webrtc
 
 func Streaming(rtpSender *webrtc.RTPSender) {
 	logger := rolling.New()
+
+	var dataPipe io.ReadCloser
+	var cmd *exec.Cmd
+	var err error
 	// Read incoming RTCP packets
 	// Before these packets are returned they are processed by interceptors. For things
 	// like NACK this needs to be called.
 	go func() {
 		rtcpBuf := make([]byte, 1500)
 		for {
+			rtpSender.SetReadDeadline(time.Now().Add(5 * time.Second))
 			if _, _, rtcpErr := rtpSender.Read(rtcpBuf); rtcpErr != nil {
 				logger.Error("rtpSender.Read failed", zap.Error(rtcpErr))
+				if dataPipe != nil {
+					dataPipe.Close()
+				}
 				return
 			}
 		}
@@ -146,11 +154,12 @@ func Streaming(rtpSender *webrtc.RTPSender) {
 
 	go func() {
 		args := getFfmpegArgs()
-		dataPipe, err := runCommand("ffmpeg", args...)
+		dataPipe, cmd, err = runCommand("ffmpeg", args...)
 		if err != nil {
 			logger.Error("RunCommand failed", zap.Error(err))
 			return
 		}
+		defer cmd.Process.Signal(syscall.SIGKILL)
 
 		h264, h264Err := h264reader.NewReader(dataPipe)
 		if h264Err != nil {
@@ -211,20 +220,20 @@ func getFfmpegArgs() []string {
 	// return []string{"-f", "dshow", "-i", arg, "-pix_fmt", "yuv420p", "-bf", "0", "-f", "h264", "-"}
 }
 
-func runCommand(name string, arg ...string) (io.ReadCloser, error) {
+func runCommand(name string, arg ...string) (io.ReadCloser, *exec.Cmd, error) {
 	cmd := exec.Command(name, arg...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 
 	dataPipe, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if err := cmd.Start(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return dataPipe, nil
+	return dataPipe, cmd, nil
 }
 
 func (m *streamsManager) addStream(track *webrtc.TrackLocalStaticSample, peer *webrtc.PeerConnection, uuid string) {
