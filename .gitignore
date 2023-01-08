@@ -2,3 +2,4 @@ log/
 .vscode/
 bin/
 *.exe
+.DS_store

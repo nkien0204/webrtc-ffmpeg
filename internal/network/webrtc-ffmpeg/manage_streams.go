@@ -259,6 +259,6 @@ func (m *streamsManager) HasStream() bool {
 
 func (m *streamsManager) SetStream(isStreaming bool) {
 	m.mtx.Lock()
-	m.mtx.Unlock()
+	defer m.mtx.Unlock()
 	m.isStreaming = isStreaming
 }
